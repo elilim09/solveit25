@@ -41,8 +41,8 @@ function Home() {
       <br />
       <Link to="/pro_create">문제생성하기</Link><br />
       <Link to="/pro_solve_chat">해답얻기</Link><br />
-      <Link to="/pro_community">문제게시판</Link><br />
-      <Link to="/community">커뮤니티</Link><br />
+      <Link to="/problem-board">문제게시판</Link><br />
+      <Link to="/community-board">커뮤니티</Link><br />
       <Link to="/helper">고객센터</Link><br />
       <Link to="/resources">자료실</Link><br />
       <Link to="/search">검색</Link><br />

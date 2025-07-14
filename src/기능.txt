@@ -1,0 +1,110 @@
+gemini api가 AIzaSyC9sxBvnTnUPlg_qoIxBm_YHsVe_2ZCwN4야
+
+@app.post("/pro_solve_chat_api")
+async def pro_solve_chat_api(
+    request: Request,
+    message: str = Form(""),
+    file: UploadFile = File(None)
+):
+    session_id, messages = get_or_create_conversation(request)
+
+    user_input = message or ""
+    
+    if file:
+        file_content = await file.read()
+        img = Image.open(io.BytesIO(file_content))
+
+        # Gemini API 이미지 입력 처리
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        prompt_text = user_input if user_input else "업로드한 이미지에 대한 설명 또는 해답을 제공해주세요."
+
+        response = model.generate_content([prompt_text, img])
+    else:
+        messages.append({"role": "user", "content": user_input})
+        
+        prompt_text = "\n".join([f"{msg['role'].capitalize()}: {msg['content']}" for msg in messages]) + "Assistant:"
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        response = model.generate_content(prompt_text)
+
+    assistant_reply = response.text.strip()
+    try:
+        data = json.loads(assistant_reply)
+        if isinstance(data, dict) and data.get("navigate"):
+            messages.append({"role": "assistant", "content": assistant_reply})
+            return JSONResponse(content={"navigate": data.get("navigate")})
+    except Exception:
+        pass
+    messages.append({"role": "assistant", "content": assistant_reply})
+
+    return JSONResponse(content={"reply": assistant_reply})
+
+
+@app.post("/generate-problems")
+async def generate_problems(
+    subject: str = Form(...),
+    danwon: str = Form(...),
+    difficulty: str = Form(...),
+    problem_type: str = Form(...),
+    num_questions: int = Form(...),
+    pdf_file: UploadFile = File(None),
+    extra: str = Form(None),
+    current_user: dict = Depends(get_current_user)
+):
+    if not current_user:
+        return JSONResponse({"error": "로그인이 필요합니다."}, status_code=401)
+
+    # 1) PDF 본문 추출 ----------------------------------------------------------
+    pdf_text = ""
+    if pdf_file:
+        try:
+            reader = PdfReader(pdf_file.file)
+            pdf_text = "".join(page.extract_text() for page in reader.pages)
+        except Exception as e:
+            return JSONResponse({"error": f"PDF 처리 오류: {e}"}, status_code=400)
+
+    # 2) 프롬프트 작성 -----------------------------------------------------------
+    prompt = f"""
+    너는 사용자가 요청하거나 업로드한 문제와 비슷한 난이도, 비슷한 유형의 문제를 출제해주는 모델이다.
+    문제는 시중 문제집 유형으로 만들어라. 업로드된 PDF가 있다면 참고하라.
+    사용자가 오지선다형 유형의 문제를 요청한다면, 반드시 각 문제마다 5개의 보기를 모두 제공하여라.
+
+    ● 주제  : {subject}
+    ● 단원  : {danwon}
+    ● 난이도 : {difficulty}
+    ● 유형  : {problem_type}
+    ● 개수  : {num_questions} 개
+    ● 추가 요청 : {extra}
+    ● PDF 미리보기(최대 1 000자) :
+    {pdf_text[:1000]}
+
+    반환 형식은 아래 예처럼 **순수 JSON 문자열**만 보내라(코드블럭 금지).
+
+    {{
+      "problems": [
+        {{"question": "…", "answer": "…", "explanation": "…"}}
+      ]
+    }}
+    """
+
+    # 3) Gemini 호출 ------------------------------------------------------------
+    model = genai.GenerativeModel("gemini-2.0-flash")
+    try:
+        response = model.generate_content(prompt)
+        raw = response.text.strip()
+        # 3‑a) 코드펜스 제거  ---------------------------------------------------
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+
+        data = json.loads(raw)          # ← 여기서 JSON 파싱
+        problems = data.get("problems", [])
+    except json.JSONDecodeError:
+        return JSONResponse({"error": "AI 응답을 JSON으로 변환하지 못했습니다."}, status_code=500)
+    except Exception as e:
+        return JSONResponse({"error": f"문제 생성 중 오류: {e}"}, status_code=500)
+
+    if not problems:
+        return JSONResponse({"error": "문제가 생성되지 않았습니다."}, status_code=400)
+
+    return JSONResponse({"problems": problems}, status_code=200)
+
+이거 참고해서 문제 생성 및 해답얻기 만들어

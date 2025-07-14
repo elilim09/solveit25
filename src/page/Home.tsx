@@ -39,8 +39,8 @@ function Home() {
         </div>
       )}
       <br />
-      <Link to="/pro_create">문제생성하기</Link><br />
-      <Link to="/pro_solve_chat">해답얻기</Link><br />
+      <Link to="/generate-problems">문제생성하기</Link><br />
+      <Link to="/pro-solve-chat">해답얻기</Link><br />
       <Link to="/problem-board">문제게시판</Link><br />
       <Link to="/community-board">커뮤니티</Link><br />
       <Link to="/helper">고객센터</Link><br />

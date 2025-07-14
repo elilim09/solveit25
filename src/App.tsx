@@ -13,6 +13,7 @@ import CommunityDetail from './page/CommunityDetail';
 import CreateCommunity from './page/CreateCommunity';
 import EditCommunity from './page/EditCommunity';
 
+
 function App() {
   return (
     <Router>
